@@ -1,652 +1,234 @@
 import pandas as pd
-import numpy as np
-from sklearn.preprocessing import MinMaxScaler
-import warnings
-warnings.filterwarnings('ignore')
 
-"""
-NHANES Dataset Feature Extraction and Preprocessing
-Goal: Construct obesity-related health risk index R
+# Read all data files
+df_question = pd.read_csv("questionnaire_clean.csv")
+df_demo = pd.read_csv("demographics_clean.csv")
+df_response = pd.read_csv("response_clean.csv")
+df_medication = pd.read_csv("medications_clean.csv")
+df_mortality = pd.read_csv("mortality_clean.csv")
 
-Tables used:
-- demographics_clean.csv
-- questionnaire_clean.csv
-- mortality_clean.csv
-- medications_clean.csv
-- response_clean.csv (contains exam & lab data)
-"""
+# Check for duplicate user IDs in each dataset
+print("==================== Checking for Duplicate User IDs ====================")
+print(f"Questionnaire - Total rows: {len(df_question)}, Unique SEQN: {df_question['SEQN'].nunique()}")
+print(f"Demographics - Total rows: {len(df_demo)}, Unique SEQN: {df_demo['SEQN'].nunique()}")
+print(f"Response - Total rows: {len(df_response)}, Unique SEQN: {df_response['SEQN'].nunique()}")
+print(f"Medication - Total rows: {len(df_medication)}, Unique SEQN: {df_medication['SEQN'].nunique()}")
+print(f"Mortality - Total rows: {len(df_mortality)}, Unique SEQN: {df_mortality['SEQN'].nunique()}")
+print()
 
-# ============================================================================
-# Step 0: Column Name Mapping (NHANES codes → Readable English names)
-# ============================================================================
+# Extract columns from questionnaire table (assuming SEQN is the user ID)
+questionnaire_cols = ['SEQN', 'HAR12S', 'HAR2', 'MCQ300A', 'MCQ300C', 
+                      'PAD440', 'BPQ090D', 'MCQ160B', 'MCQ160F', 
+                      'MCQ160E', 'DIQ010', 'BPQ020', 'MCQ160M']
+df_q_selected = df_question[questionnaire_cols]
 
-COLUMN_NAME_MAPPING = {
-    # Demographics
-    'SEQN': 'patient_id',
-    'RIDAGEYR': 'age',
-    'RIAGENDR': 'gender',
-    'RIDRETH3': 'race_ethnicity',
-    'DMDEDUC2': 'education',
-    'INDFMPIR': 'income_poverty_ratio',
-    'DMDMARTL': 'marital_status',
-    
-    # Body measurements
-    'BMXBMI': 'bmi',
-    'BMXWT': 'weight_kg',
-    'BMXHT': 'height_cm',
-    'BMXWAIST': 'waist_circumference',
-    
-    # Blood pressure
-    'BPXSY1': 'systolic_bp_1',
-    'BPXSY2': 'systolic_bp_2',
-    'BPXDI1': 'diastolic_bp_1',
-    'BPXDI2': 'diastolic_bp_2',
-    
-    # Glucose & diabetes markers
-    'LBXGLU': 'fasting_glucose',
-    'LBXGH': 'hemoglobin_a1c',
-    
-    # Lipid profile
-    'LBXTC': 'total_cholesterol',
-    'LBXTR': 'triglycerides',
-    'LBDHDD': 'hdl_cholesterol',
-    'LBDLDL': 'ldl_cholesterol',
-    
-    # Kidney function
-    'LBXSCR': 'serum_creatinine',
-    'LBXSUA': 'uric_acid',
-    
-    # Liver function
-    'LBXSASSI': 'ast_liver_enzyme',
-    'LBXSATSI': 'alt_liver_enzyme',
-    
-    # Inflammatory markers
-    'LBXCRP': 'c_reactive_protein',
-    
-    # Other biomarkers
-    'LBXFER': 'ferritin',
-    'LBXTSH': 'thyroid_stimulating_hormone',
-    'LBXHCY': 'homocysteine',
-    
-    # Blood count
-    'LBXHGB': 'hemoglobin',
-    'LBXWBCSI': 'white_blood_cell_count',
-    
-    # Questionnaire - Diabetes
-    'DIQ010': 'diabetes_diagnosed',
-    'DIQ050': 'taking_insulin',
-    'DIQ070': 'taking_diabetes_pills',
-    
-    # Questionnaire - Cardiovascular
-    'BPQ020': 'hypertension_diagnosed',
-    'BPQ050A': 'taking_bp_medication',
-    'BPQ080': 'high_cholesterol_diagnosed',
-    'MCQ160B': 'congestive_heart_failure',
-    'MCQ160C': 'coronary_heart_disease',
-    'MCQ160D': 'angina',
-    'MCQ160E': 'heart_attack',
-    'MCQ160F': 'stroke',
-    
-    # Questionnaire - Other diseases
-    'MCQ160L': 'liver_condition',
-    'MCQ220': 'cancer_diagnosed',
-    
-    # Questionnaire - Lifestyle
-    'ALQ101': 'ever_drank_alcohol',
-    'ALQ120Q': 'alcohol_frequency_past_year',
-    'PAQ605': 'vigorous_work_activity',
-    'PAQ620': 'moderate_work_activity',
-    'PAQ665': 'vigorous_recreational_activity',
-    
-    # Questionnaire - Family history
-    'MCQ250B': 'family_diabetes',
-    'MCQ250D': 'family_hypertension',
-    'MCQ250E': 'family_heart_attack',
-    
-    # Mortality
-    'MORTSTAT': 'mortality_status',
-    'UCOD_LEADING': 'cause_of_death',
-    'DIABETES': 'diabetes_related_death',
-    'HYPERTEN': 'hypertension_related_death',
-    'PERMTH_INT': 'followup_months_interview',
-    'PERMTH_EXM': 'followup_months_exam',
-    
-    # Medication
-    'RXDCOUNT': 'prescription_medication_count',
+# Extract columns from demographics table
+demo_cols = ['SEQN', 'RIDAGEYR', 'RIDRETH1', 'RIAGENDR', 'INDFMPIR']
+df_d_selected = df_demo[demo_cols]
+
+# Extract columns from response table
+response_cols = ['SEQN', 'BMXHT', 'BMXWT', 'BMXBMI', 'BMXWAIST', 
+                 'BPXSY1', 'BPXDI1']
+df_r_selected = df_response[response_cols]
+
+# Extract columns from medication table
+medication_cols = ['SEQN', 'RXDCOUNT']
+df_m_selected = df_medication[medication_cols]
+
+# For medication table: aggregate by SEQN to ensure unique user IDs
+# Take the maximum RXDCOUNT for each user (most medications recorded)
+df_m_selected = df_m_selected.groupby('SEQN', as_index=False)['RXDCOUNT'].max()
+
+# Extract columns from mortality table
+mortality_cols = ['SEQN', 'MORTSTAT']
+df_mort_selected = df_mortality[mortality_cols]
+
+# For mortality table: aggregate by SEQN to ensure unique user IDs
+# Take the maximum MORTSTAT for each user (if died in any record, mark as 1)
+df_mort_selected = df_mort_selected.groupby('SEQN', as_index=False)['MORTSTAT'].max()
+
+# Merge all tables through inner join step by step
+# Step 1: Merge questionnaire and demographics
+df_merged = pd.merge(df_q_selected, df_d_selected, on='SEQN', how='inner')
+print(f"After merging questionnaire and demographics: {len(df_merged)} rows")
+
+# Step 2: Merge response
+df_merged = pd.merge(df_merged, df_r_selected, on='SEQN', how='inner')
+print(f"After merging response: {len(df_merged)} rows")
+
+# Step 3: Merge medication
+df_merged = pd.merge(df_merged, df_m_selected, on='SEQN', how='inner')
+print(f"After merging medication: {len(df_merged)} rows")
+
+# Step 4: Merge mortality
+df_merged = pd.merge(df_merged, df_mort_selected, on='SEQN', how='inner')
+print(f"After merging mortality: {len(df_merged)} rows")
+
+# Save merged table
+df_merged.to_csv("nhanes_merged_data.csv", index=False)
+
+print(f"\nFinal merged table dimensions: {df_merged.shape}")
+print(f"\nFirst 5 rows preview:")
+print(df_merged.head())
+
+print(f"\nData info:")
+print(df_merged.info())
+
+print(f"\nMissing values per column:")
+print(df_merged.isnull().sum())
+
+# ==================== Data Processing for Logistic Regression ====================
+
+# 1. HAR12S: Fill NaN with 0
+df_merged['HAR12S'] = df_merged['HAR12S'].fillna(0)
+
+# Cap Hours_Sitting_per_Day at maximum 24 hours
+df_merged['HAR12S'] = df_merged['HAR12S'].apply(lambda x: min(x, 24))
+print(f"Hours_Sitting_per_Day - Max value after capping: {df_merged['HAR12S'].max()}")
+
+# 2. RXDCOUNT: Fill NaN with 0
+df_merged['RXDCOUNT'] = df_merged['RXDCOUNT'].fillna(0)
+
+# 3. MORTSTAT: Convert to binary (1 if equals 1, else 0)
+df_merged['MORTSTAT'] = df_merged['MORTSTAT'].apply(lambda x: 1 if x == 1 else 0)
+
+# 4. Binary Yes/No columns: Keep 1 as 1, convert all other values to 0
+# These columns represent binary yes/no questions
+binary_columns = ['MCQ300A', 'MCQ300C', 'PAD440', 'BPQ090D', 
+                  'MCQ160B', 'MCQ160F', 'MCQ160E', 'DIQ010', 
+                  'BPQ020', 'MCQ160M']
+
+for col in binary_columns:
+    # First fill NaN with 0, then keep 1 as 1, convert everything else to 0
+    df_merged[col] = df_merged[col].fillna(0)
+    df_merged[col] = df_merged[col].apply(lambda x: 1 if x == 1 else 0)
+    print(f"{col} - Unique values after processing: {sorted(df_merged[col].unique())}")
+
+print("\n==================== Data Processing Complete ====================")
+print(f"\nProcessed data dimensions: {df_merged.shape}")
+
+print(f"\nFirst 5 rows after processing:")
+print(df_merged.head())
+
+print(f"\nMissing values after processing:")
+print(df_merged.isnull().sum())
+
+print(f"\nKey column distributions:")
+print(f"\nMORTSTAT distribution:")
+print(df_merged['MORTSTAT'].value_counts())
+
+print(f"\nExample binary column (MCQ300A) distribution:")
+print(df_merged['MCQ300A'].value_counts(dropna=False))
+
+# 5. Create CVD_Diagnosed column: If any of MCQ160B, MCQ160F, MCQ160E is 1, set to 1; if all are 0, set to 0
+df_merged['CVD_Diagnosed'] = df_merged[['MCQ160B', 'MCQ160F', 'MCQ160E']].apply(
+    lambda row: 1 if row.sum() >= 1 else 0, axis=1
+)
+
+# Drop the three original CVD columns
+df_merged = df_merged.drop(columns=['MCQ160B', 'MCQ160F', 'MCQ160E'])
+
+print(f"\nCVD_Diagnosed distribution:")
+print(df_merged['CVD_Diagnosed'].value_counts())
+
+# 6. Rename columns to human-readable names
+column_mapping = {
+    'SEQN': 'User_ID',
+    'HAR12S': 'Hours_Sitting_per_Day',
+    'HAR2': 'Age_First_Period',
+    'MCQ300A': 'Family_History_Overweight',
+    'MCQ300C': 'Family_History_Diabetes',
+    'PAD440': 'Physically_Active',
+    'BPQ090D': 'Told_High_Cholesterol',
+    'DIQ010': 'Diagnosed_Diabetes',
+    'BPQ020': 'Diagnosed_Hypertension',
+    'MCQ160M': 'Diagnosed_Thyroid_Problem',
+    'RIDAGEYR': 'Age',
+    'RIDRETH1': 'Race_Ethnicity',
+    'RIAGENDR': 'Gender',
+    'INDFMPIR': 'Poverty_Income_Ratio',
+    'BMXHT': 'Height_cm',
+    'BMXWT': 'Weight_kg',
+    'BMXBMI': 'BMI',
+    'BMXWAIST': 'Waist_Circumference_cm',
+    'BPXSY1': 'Systolic_BP',
+    'BPXDI1': 'Diastolic_BP',
+    'RXDCOUNT': 'Number_of_Medications',
+    'MORTSTAT': 'Mortality_Status',
+    'CVD_Diagnosed': 'CVD_Diagnosed'
 }
 
-# ============================================================================
-# Step 1: Define features to extract
-# ============================================================================
+df_merged = df_merged.rename(columns=column_mapping)
 
-SELECTED_FEATURES = {
-    
-    # DEMOGRAPHIC TABLE
-    'demographic': {
-        'id': 'SEQN',
-        'features': [
-            'RIDAGEYR',      # Age in years
-            'RIAGENDR',      # Gender (1=Male, 2=Female)
-            'RIDRETH3',      # Race/Ethnicity
-            'INDFMPIR',      # Family poverty income ratio
-        ]
-    },
-    
-    # RESPONSE TABLE - Contains exam and lab data
-    'response': {
-        'id': 'SEQN',
-        'features': {
-            # Body measurements
-            'anthropometric': [
-                'BMXBMI',        # BMI
-                'BMXWT',         # Weight (kg)
-                'BMXHT',         # Height (cm)
-                'BMXWAIST',      # Waist circumference (cm)
-            ],
-            
-            # Blood pressure
-            'blood_pressure': [
-                'BPXSY1',        # Systolic BP reading 1 (mmHg)
-                'BPXDI1',        # Diastolic BP reading 1 (mmHg)
-                'BPXSY2',        # Systolic BP reading 2
-                'BPXDI2',        # Diastolic BP reading 2
-            ],
-            
-            # Glucose and diabetes markers
-            'glucose': [
-                'LBXGLU',        # Fasting glucose (mg/dL)
-                'LBXGH',         # Glycohemoglobin (%)
-            ],
-            
-            # Lipid profile
-            'lipids': [
-                'LBXTC',         # Total cholesterol (mg/dL)
-                'LBXTR',         # Triglycerides (mg/dL)
-                'LBDHDD',        # HDL cholesterol (mg/dL)
-                'LBDLDL',        # LDL cholesterol (mg/dL)
-            ],
-            
-            # Kidney function
-            'kidney': [
-                'LBXSCR',        # Serum creatinine (mg/dL)
-                'LBXSUA',        # Uric acid (mg/dL)
-            ],
-            
-            # Liver function
-            'liver': [
-                'LBXSASSI',      # AST (U/L)
-                'LBXSATSI',      # ALT (U/L)
-            ],
-        }
-    },
-    
-    # QUESTIONNAIRE TABLE
-    'questionnaire': {
-        'id': 'SEQN',
-        'features': {
-            # Diabetes
-            'diabetes': [
-                'DIQ010',        # Doctor told you have diabetes
-                'DIQ050',        # Taking insulin now
-                'DIQ070',        # Taking diabetic pills
-            ],
-            
-            # Cardiovascular disease
-            'cardiovascular': [
-                'BPQ020',        # Ever told you had high blood pressure
-                'BPQ050A',       # Now taking prescribed medicine for HBP
-                'BPQ080',        # Doctor told you - high cholesterol
-            ],
-            
-            # Other chronic diseases
-            'chronic_diseases': [
-                'MCQ160L',       # Ever had any liver condition
-                'MCQ220',        # Ever told you had cancer
-            ],
-            
-            # Lifestyle - Alcohol
-            'alcohol': [
-                'ALQ101',        # Ever had a drink of any alcohol
-                'ALQ120Q',       # How often drink alcohol past 12 months
-            ],
-            
-            # Physical activity
-            'physical_activity': [
-                'PAQ605',        # Vigorous work activity
-                'PAQ620',        # Moderate work activity
-                'PAQ665',        # Vigorous recreational activities
-            ],
-            
-            # Family history
-            'family_history': [
-                'MCQ250B',       # Blood relatives have diabetes
-                'MCQ250D',       # Blood relatives have hypertension
-                'MCQ250E',       # Blood relatives have heart attack
-            ],
-        }
-    },
-    
-    # MORTALITY TABLE
-    'mortality': {
-        'id': 'SEQN',
-        'features': [
-            'MORTSTAT',      # Mortality status (0=Alive, 1=Deceased)
-            'UCOD_LEADING',  # Underlying leading cause of death
-            'DIABETES',      # Diabetes as cause of death
-        ]
-    },
-    
-    # MEDICATION TABLE
-    'medication': {
-        'id': 'SEQN',
-        'features': [
-            'RXDCOUNT',      # Number of prescription medications
-        ]
-    },
-}
+print("\n==================== Final Data Table ====================")
+print(f"\nFinal data dimensions: {df_merged.shape}")
+print(f"\nColumn names:")
+print(df_merged.columns.tolist())
 
+# Save final processed data
+df_merged.to_csv("nhanes_merged_processed.csv", index=False)
 
-# ============================================================================
-# Step 2: Data loading function
-# ============================================================================
+# Check for duplicate User_IDs in final merged data
+print(f"\nChecking for duplicate User_IDs in merged data:")
+print(f"Total rows: {len(df_merged)}")
+print(f"Unique User_IDs: {df_merged['User_ID'].nunique()}")
+duplicate_ids = df_merged[df_merged.duplicated(subset=['User_ID'], keep=False)]
+if len(duplicate_ids) > 0:
+    print(f"WARNING: Found {len(duplicate_ids)} duplicate rows!")
+    print(f"Number of unique IDs with duplicates: {duplicate_ids['User_ID'].nunique()}")
+    print("\nRemoving duplicate rows, keeping first occurrence...")
+    df_merged = df_merged.drop_duplicates(subset=['User_ID'], keep='first')
+    print(f"After removing duplicates: {len(df_merged)} rows")
+else:
+    print("No duplicate User_IDs found!")
 
-def load_and_extract_features(file_paths):
-    """
-    Load CSV files and extract selected features
-    """
-    extracted_data = {}
-    
-    for table_name, path in file_paths.items():
-        print(f"Loading {table_name} table...")
-        try:
-            df = pd.read_csv(path, low_memory=False)
-            
-            # Get required columns for this table
-            config = SELECTED_FEATURES.get(table_name, {})
-            id_col = config.get('id', 'SEQN')
-            features = config.get('features', [])
-            
-            # Flatten nested feature dictionary
-            if isinstance(features, dict):
-                all_features = [id_col]
-                for category_features in features.values():
-                    all_features.extend(category_features)
-            else:
-                all_features = [id_col] + features
-            
-            # Keep only available columns
-            available_cols = [col for col in all_features if col in df.columns]
-            missing_cols = [col for col in all_features if col not in df.columns]
-            
-            if missing_cols:
-                print(f"  Warning: Missing {len(missing_cols)} columns")
-                print(f"  Examples: {missing_cols[:5]}")
-            
-            extracted_data[table_name] = df[available_cols]
-            print(f"  ✓ Extracted {len(available_cols)-1} features from {len(df)} rows")
-            
-        except FileNotFoundError:
-            print(f"  ✗ File not found: {path}")
-        except Exception as e:
-            print(f"  ✗ Error loading {table_name}: {str(e)}")
-    
-    return extracted_data
+print(f"\nFinal data first 5 rows:")
+print(df_merged.head())
 
+print(f"\nFinal missing values per column:")
+print(df_merged.isnull().sum())
 
-# ============================================================================
-# Step 3: Consolidate multiple cycles
-# ============================================================================
+# 7. Remove rows with any missing values
+print("\n==================== Removing Rows with Missing Values ====================")
+print(f"\nBefore removing missing values: {len(df_merged)} rows")
 
-def consolidate_cycles(df):
-    """
-    Consolidate data from multiple NHANES cycles
-    For variables like BMXBMI, BMXBMI1, BMXBMI2, take the first non-null value
-    """
-    print("\nConsolidating multi-cycle variables...")
-    
-    # Find base variable names
-    base_vars = set()
-    for col in df.columns:
-        if col.endswith('1') or col.endswith('2'):
-            base_vars.add(col[:-1])
-    
-    consolidated_count = 0
-    for base_var in base_vars:
-        variants = [base_var, base_var + '1', base_var + '2']
-        available_variants = [v for v in variants if v in df.columns]
-        
-        if len(available_variants) > 1:
-            # Take first non-null value across cycles
-            df[base_var + '_consolidated'] = df[available_variants].bfill(axis=1).iloc[:, 0]
-            consolidated_count += 1
-    
-    print(f"  ✓ Consolidated {consolidated_count} variables")
-    return df
+# First, show rows with missing values
+rows_with_missing = df_merged[df_merged.isnull().any(axis=1)]
+print(f"\nTotal rows with missing values: {len(rows_with_missing)}")
 
+if len(rows_with_missing) > 0:
+    print(f"\n==================== First 20 Rows with Missing Values ====================")
+    pd.set_option('display.max_columns', None)  # Show all columns
+    pd.set_option('display.width', None)  # No width limit
+    pd.set_option('display.max_colwidth', None)  # Show full column content
+    
+    print(rows_with_missing.head(20).to_string())
+    
+    print(f"\n\nMissing value counts by column (for rows with missing data):")
+    print(rows_with_missing.isnull().sum())
+    
+    print(f"\n\nWhich columns have missing values (count > 0):")
+    missing_cols = rows_with_missing.isnull().sum()
+    print(missing_cols[missing_cols > 0].sort_values(ascending=False))
 
-# ============================================================================
-# Step 4: Merge all tables
-# ============================================================================
+df_merged_complete = df_merged.dropna()
 
-def merge_all_tables(extracted_data):
-    """
-    Merge all tables by SEQN
-    """
-    print("\nMerging all tables...")
-    
-    if 'demographic' not in extracted_data:
-        print("  ✗ ERROR: demographic table is required!")
-        return None
-    
-    merged_df = extracted_data['demographic'].copy()
-    print(f"  Starting with demographic: {len(merged_df)} rows")
-    
-    # Merge other tables
-    for table_name in ['response', 'questionnaire', 'mortality', 'medication']:
-        if table_name in extracted_data:
-            merged_df = merged_df.merge(
-                extracted_data[table_name],
-                on='SEQN',
-                how='left'
-            )
-            print(f"  After merging {table_name}: {len(merged_df)} rows, {len(merged_df.columns)} columns")
-        else:
-            print(f"  Skipping {table_name} (not loaded)")
-    
-    return merged_df
+print(f"\nAfter removing missing values: {len(df_merged_complete)} rows")
+print(f"Rows removed: {len(df_merged) - len(df_merged_complete)}")
+print(f"Percentage of data retained: {len(df_merged_complete)/len(df_merged)*100:.2f}%")
 
+# Verify no missing values remain
+print(f"\nMissing values after removal:")
+print(df_merged_complete.isnull().sum().sum())
 
-# ============================================================================
-# Step 5: Rename columns to readable English
-# ============================================================================
+# Save complete data without missing values
+df_merged_complete.to_csv("nhanes_merged_complete.csv", index=False)
 
-def rename_columns_to_readable(df):
-    """
-    Rename NHANES column codes to readable English names
-    """
-    print("\nRenaming columns to readable English...")
-    
-    # Create rename mapping for columns that exist in dataframe
-    rename_map = {}
-    for old_name, new_name in COLUMN_NAME_MAPPING.items():
-        if old_name in df.columns:
-            rename_map[old_name] = new_name
-        # Also check for consolidated versions
-        if old_name + '_consolidated' in df.columns:
-            rename_map[old_name + '_consolidated'] = new_name
-    
-    df_renamed = df.rename(columns=rename_map)
-    print(f"  ✓ Renamed {len(rename_map)} columns")
-    
-    # Show examples
-    if rename_map:
-        print(f"\n  Example renamings:")
-        for i, (old, new) in enumerate(list(rename_map.items())[:5]):
-            print(f"    {old} → {new}")
-    
-    return df_renamed
+print(f"\nFinal complete data dimensions: {df_merged_complete.shape}")
+print(f"\nFinal complete data first 5 rows:")
+print(df_merged_complete.head())
 
-
-# ============================================================================
-# Step 6: Data cleaning and preprocessing
-# ============================================================================
-
-def clean_and_preprocess(df):
-    """
-    Clean and preprocess merged data
-    """
-    print("\nData cleaning and preprocessing...")
-    df_clean = df.copy()
-    
-    # 1. Handle missing value markers
-    missing_markers = [7, 9, 77, 99, 777, 999, 7777, 9999, '.', '']
-    df_clean = df_clean.replace(missing_markers, np.nan)
-    
-    # 2. Consolidate multi-cycle variables
-    df_clean = consolidate_cycles(df_clean)
-    
-    # 3. Create main BMI column
-    bmi_candidates = ['bmi', 'bmi_consolidated', 'BMXBMI', 'BMXBMI_consolidated']
-    for candidate in bmi_candidates:
-        if candidate in df_clean.columns:
-            df_clean['bmi'] = df_clean[candidate]
-            break
-    
-    # 4. Create main age column
-    age_candidates = ['age', 'RIDAGEYR']
-    for candidate in age_candidates:
-        if candidate in df_clean.columns:
-            df_clean['age'] = df_clean[candidate]
-            break
-    
-    # 5. Keep only samples with BMI and age
-    if 'bmi' in df_clean.columns and 'age' in df_clean.columns:
-        initial_count = len(df_clean)
-        df_clean = df_clean.dropna(subset=['bmi', 'age'])
-        print(f"  Removed missing BMI/age: {initial_count} → {len(df_clean)}")
-    
-    # 6. Keep only adults (>= 18 years)
-    if 'age' in df_clean.columns:
-        initial_count = len(df_clean)
-        df_clean = df_clean[df_clean['age'] >= 18]
-        print(f"  Kept only adults: {initial_count} → {len(df_clean)}")
-    
-    # 7. Report missing rates
-    print("\nMissing rates for key features:")
-    key_vars = ['bmi', 'age', 'systolic_bp_1', 'fasting_glucose', 
-                'total_cholesterol', 'hdl_cholesterol', 'mortality_status']
-    
-    for var in key_vars:
-        if var in df_clean.columns:
-            missing_rate = (df_clean[var].isnull().sum() / len(df_clean) * 100)
-            if missing_rate > 0:
-                print(f"  {var}: {missing_rate:.1f}%")
-    
-    return df_clean
-
-
-# ============================================================================
-# Step 7: Calculate health risk index R
-# ============================================================================
-
-def calculate_risk_score_R(df):
-    """
-    Calculate obesity-related health risk index R
-    """
-    print("\nCalculating health risk index R...")
-    df_r = df.copy()
-    
-    # Find BMI column
-    if 'bmi' not in df_r.columns:
-        print("  ✗ ERROR: No BMI column found!")
-        return df_r
-    
-    # Initialize R with BMI
-    df_r['health_risk_score'] = df_r['bmi'].copy()
-    
-    # Helper to get column
-    def get_col(names):
-        for name in names if isinstance(names, list) else [names]:
-            if name in df_r.columns:
-                return name
-        return None
-    
-    # Risk adjustments
-    adjustments_applied = []
-    
-    # 1. Glucose
-    glucose_col = get_col(['fasting_glucose', 'LBXGLU'])
-    if glucose_col:
-        df_r.loc[df_r[glucose_col] >= 100, 'health_risk_score'] += 2
-        df_r.loc[df_r[glucose_col] >= 126, 'health_risk_score'] += 3
-        adjustments_applied.append('glucose')
-    
-    # 2. HbA1c
-    a1c_col = get_col(['hemoglobin_a1c', 'LBXGH'])
-    if a1c_col:
-        df_r.loc[df_r[a1c_col] >= 5.7, 'health_risk_score'] += 2
-        df_r.loc[df_r[a1c_col] >= 6.5, 'health_risk_score'] += 3
-        adjustments_applied.append('HbA1c')
-    
-    # 3. Blood pressure
-    bp_col = get_col(['systolic_bp_1', 'BPXSY1'])
-    if bp_col:
-        df_r.loc[df_r[bp_col] >= 130, 'health_risk_score'] += 2
-        df_r.loc[df_r[bp_col] >= 140, 'health_risk_score'] += 2
-        adjustments_applied.append('blood_pressure')
-    
-    # 4. Hypertension diagnosis
-    htn_col = get_col(['hypertension_diagnosed', 'BPQ020'])
-    if htn_col:
-        df_r.loc[df_r[htn_col] == 1, 'health_risk_score'] += 2
-        adjustments_applied.append('hypertension_diagnosis')
-    
-    # 5. Lipids
-    tc_col = get_col(['total_cholesterol', 'LBXTC'])
-    if tc_col:
-        df_r.loc[df_r[tc_col] >= 240, 'health_risk_score'] += 2
-    
-    ldl_col = get_col(['ldl_cholesterol', 'LBDLDL'])
-    if ldl_col:
-        df_r.loc[df_r[ldl_col] >= 160, 'health_risk_score'] += 2
-    
-    hdl_col = get_col(['hdl_cholesterol', 'LBDHDD'])
-    if hdl_col:
-        df_r.loc[df_r[hdl_col] < 40, 'health_risk_score'] += 2
-        adjustments_applied.append('lipids')
-    
-    # 6. Diabetes diagnosis
-    dm_col = get_col(['diabetes_diagnosed', 'DIQ010'])
-    if dm_col:
-        df_r.loc[df_r[dm_col] == 1, 'health_risk_score'] += 3
-        adjustments_applied.append('diabetes')
-    
-    # 7. Mortality
-    mort_col = get_col(['mortality_status', 'MORTSTAT'])
-    if mort_col:
-        df_r.loc[df_r[mort_col] == 1, 'health_risk_score'] += 15
-        adjustments_applied.append('mortality')
-    
-    # 8. Age
-    age_col = get_col(['age', 'RIDAGEYR'])
-    if age_col:
-        df_r.loc[df_r[age_col] >= 60, 'health_risk_score'] += 2
-        df_r.loc[df_r[age_col] >= 70, 'health_risk_score'] += 2
-        adjustments_applied.append('age')
-    
-    # 9. Exercise (protective)
-    exercise_col = get_col(['vigorous_recreational_activity', 'PAQ665'])
-    if exercise_col:
-        df_r.loc[df_r[exercise_col] == 1, 'health_risk_score'] -= 1
-        adjustments_applied.append('exercise')
-    
-    print(f"  ✓ Applied {len(adjustments_applied)} risk adjustments:")
-    print(f"    {', '.join(adjustments_applied)}")
-    
-    # Report distribution
-    print(f"\n  Health Risk Score (R) distribution:")
-    print(f"    Min: {df_r['health_risk_score'].min():.1f}")
-    print(f"    25th: {df_r['health_risk_score'].quantile(0.25):.1f}")
-    print(f"    Median: {df_r['health_risk_score'].median():.1f}")
-    print(f"    75th: {df_r['health_risk_score'].quantile(0.75):.1f}")
-    print(f"    Max: {df_r['health_risk_score'].max():.1f}")
-    print(f"    Mean: {df_r['health_risk_score'].mean():.1f} ± {df_r['health_risk_score'].std():.1f}")
-    
-    return df_r
-
-
-# ============================================================================
-# Step 8: Feature normalization
-# ============================================================================
-
-def normalize_features(df, target_col='health_risk_score'):
-    """
-    Normalize numeric features to [0, 1]
-    """
-    print("\nNormalizing features to [0, 1]...")
-    df_norm = df.copy()
-    
-    # Get numeric columns
-    exclude_cols = ['patient_id', 'SEQN', target_col, 'bmi', 'age']
-    numeric_cols = df_norm.select_dtypes(include=[np.number]).columns
-    cols_to_normalize = [col for col in numeric_cols if col not in exclude_cols]
-    
-    # Normalize
-    scaler = MinMaxScaler()
-    df_norm[cols_to_normalize] = scaler.fit_transform(
-        df_norm[cols_to_normalize].fillna(df_norm[cols_to_normalize].median())
-    )
-    
-    print(f"  ✓ Normalized {len(cols_to_normalize)} features")
-    
-    return df_norm, scaler
-
-
-# ============================================================================
-# Main function
-# ============================================================================
-
-def main(file_paths):
-    """
-    Execute complete data processing pipeline
-    """
-    print("="*80)
-    print("NHANES DATA PROCESSING PIPELINE")
-    print("="*80)
-    
-    # Step 1: Load data
-    extracted_data = load_and_extract_features(file_paths)
-    
-    if not extracted_data:
-        print("\n✗ No data loaded. Check file paths.")
-        return None, None
-    
-    # Step 2: Merge tables
-    df_merged = merge_all_tables(extracted_data)
-    if df_merged is None:
-        return None, None
-    
-    # Step 3: Rename columns to readable English
-    df_renamed = rename_columns_to_readable(df_merged)
-    
-    # Step 4: Clean data
-    df_clean = clean_and_preprocess(df_renamed)
-    print("Before:", len(df_clean))
-    cols = [
-    'patient_id',
-    'age',
-    'gender',
-    'race_ethnicity',
-    'income_poverty_ratio',
-    'bmi',
-    'weight_kg',
-    'height_cm'
-    ]
-
-    df_clean = df_clean.drop_duplicates(subset=cols, keep='first')
-    print("After:", len(df_clean))
-    return df_clean
-
-
-# ============================================================================
-# Run script
-# ============================================================================
-
-if __name__ == "__main__":
-    # Configure file paths
-    FILE_PATHS = {
-        'demographic': '../data/demographics_clean.csv',
-        'response': '../data/response_clean.csv',
-        'questionnaire': '../data/questionnaire_clean.csv',
-        'mortality': '../data/mortality_clean.csv',
-        'medication': '../data/medications_clean.csv'
-    }
-    
-    # Run pipeline
-    df_processed = main(FILE_PATHS)
-    
-    if df_processed is not None:
-        # Save results
-        output_file = 'nhanes_processed_final.csv'
-        df_processed.to_csv(output_file, index=False)
-        print(f"\n✓ Data saved to: {output_file}")
+print("\n==================== Summary ====================")
+print(f"Original merged data: {len(df_merged)} rows")
+print(f"Complete data (no missing values): {len(df_merged_complete)} rows")
+print(f"Data saved to: nhanes_merged_complete.csv")
