@@ -635,11 +635,11 @@ def main(file_paths):
 if __name__ == "__main__":
     # Configure file paths
     FILE_PATHS = {
-        'demographic': 'demographics_clean.csv',
-        'response': 'response_clean.csv',
-        'questionnaire': 'questionnaire_clean.csv',
-        'mortality': 'mortality_clean.csv',
-        'medication': 'medications_clean.csv'
+        'demographic': '../data/demographics_clean.csv',
+        'response': '../data/response_clean.csv',
+        'questionnaire': '../data/questionnaire_clean.csv',
+        'mortality': '../data/mortality_clean.csv',
+        'medication': '../data/medications_clean.csv'
     }
     
     # Run pipeline
