@@ -14,8 +14,10 @@ class IBMIDataset(Dataset):
                            'Diagnosed_Hypertension',
                            'Diagnosed_Thyroid_Problem',
                            'CVD_Diagnosed']
-        self.features = self.data_frame.drop(columns=self.label_cols + ['User_ID'])
+        self.features = self.data_frame.drop(columns=self.label_cols + ['User_ID', 'Mortality_Status', 'BMI', 'Age_First_Period'])
         self.labels = self.data_frame[self.label_cols]
+        self.num_features = self.features.shape[1]
+        self.num_labels = self.labels.shape[1]
 
     def __len__(self):
         return len(self.data_frame)

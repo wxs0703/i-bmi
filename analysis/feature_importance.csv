@@ -1,0 +1,16 @@
+Feature,Weight_Magnitude
+Family_History_Diabetes,1.1827979
+Gender,1.1350017
+Family_History_Overweight,0.74614936
+Physically_Active,0.5380101
+Number_of_Medications,0.3762267
+Race_Ethnicity,0.27293885
+Poverty_Income_Ratio,0.24664952
+Height_cm,0.10055131
+Age,0.079485625
+Weight_kg,0.042521883
+Waist_Circumference_cm,0.033469234
+Hours_Sitting_per_Day,0.026069881
+Systolic_BP,0.024043294
+Diastolic_BP,0.020897299
+Age_First_Period,0.0033006172
