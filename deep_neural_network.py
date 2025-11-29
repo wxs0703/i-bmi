@@ -16,8 +16,7 @@ class DeepNeuralNetwork(nn.Module):
         
         layers = []
         prev_dim = input_dim
-        
-        # Build hidden layers with BatchNorm, ReLU, and Dropout
+
         for hidden_dim in hidden_dims:
             layers.append(nn.Linear(prev_dim, hidden_dim))
             layers.append(nn.BatchNorm1d(hidden_dim))
@@ -25,18 +24,15 @@ class DeepNeuralNetwork(nn.Module):
             layers.append(nn.Dropout(dropout_rate))
             prev_dim = hidden_dim
         
-        # Output layer
         layers.append(nn.Linear(prev_dim, output_dim))
         
         self.network = nn.Sequential(*layers)
         self.sigmoid = nn.Sigmoid()
     
     def forward(self, x):
-        # Add numerical stability check
         x = torch.clamp(x, min=-1e6, max=1e6)
         x = self.network(x)
         output = self.sigmoid(x)
-        # Ensure output is strictly between 0 and 1 (avoid exactly 0 or 1)
         output = torch.clamp(output, min=1e-7, max=1-1e-7)
         return output
 
@@ -59,7 +55,7 @@ class ResidualBlock(nn.Module):
         out = self.dropout(out)
         out = self.fc2(out)
         out = self.bn2(out)
-        out += residual  # Residual connection
+        out += residual   
         out = self.relu(out)
         return out
 
