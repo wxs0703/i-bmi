@@ -7,7 +7,6 @@ from deep_neural_network import DeepNeuralNetwork, DeepResidualNetwork
 from edited_bmi_data import IBMIDataset
 import os
 
-
 class BMILinearCombiner:
     def __init__(self, bmi_min=15.0, bmi_max=30.0, weights=None, num_outputs=5):
         self.bmi_min = bmi_min
