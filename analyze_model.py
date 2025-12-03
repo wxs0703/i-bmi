@@ -6,6 +6,7 @@ import numpy as np
 
 from data import IBMIDataset
 from network import MultivariateLogisticRegression
+from deep_neural_network import DeepNeuralNetwork
 from torch.utils.data import DataLoader
 
 def plot_loss_curve(train_losses, val_losses, save_path):
@@ -32,20 +33,20 @@ def plot_accuracy_curve(train_accuracies, val_accuracies, save_path):
 
 def analyze_model(model, data_loader, device, output_dir):
     
-    # analyze model weights
-    weights = model.linear.weight.data.cpu().numpy()
-    num_conditions = weights.shape[0]
-    feature_names = data_loader.dataset.features.columns.tolist()
-    # take L2 norm of weights for each feature across all conditions, to get overall importance
-    weight_magnitudes = np.linalg.norm(weights, axis=0)
-    feature_importance = pd.DataFrame({
-        'Feature': feature_names,
-        'Weight_Magnitude': weight_magnitudes
-    }).sort_values(by='Weight_Magnitude', ascending=False)
-    feature_importance.to_csv(os.path.join(output_dir, "feature_importance.csv"), index=False)
+    # # analyze model weights
+    # weights = model.linear.weight.data.cpu().numpy()
+    # num_conditions = weights.shape[0]
+    # feature_names = data_loader.dataset.features.columns.tolist()
+    # # take L2 norm of weights for each feature across all conditions, to get overall importance
+    # weight_magnitudes = np.linalg.norm(weights, axis=0)
+    # feature_importance = pd.DataFrame({
+    #     'Feature': feature_names,
+    #     'Weight_Magnitude': weight_magnitudes
+    # }).sort_values(by='Weight_Magnitude', ascending=False)
+    # feature_importance.to_csv(os.path.join(output_dir, "feature_importance.csv"), index=False)
 
     # plot loss and accuracy curves
-    loss_csv_path = os.path.join(MODEL_DIR, "training_loss.csv")
+    loss_csv_path = os.path.join(MODEL_DIR, "nn_training_history_dnn.csv")
     if os.path.exists(loss_csv_path):
         loss_df = pd.read_csv(loss_csv_path)
         train_losses = loss_df['train_loss'].tolist()
@@ -53,16 +54,46 @@ def analyze_model(model, data_loader, device, output_dir):
         train_accuracies = loss_df['train_accuracy'].tolist()
         val_accuracies = loss_df['val_accuracy'].tolist()
 
-        plot_loss_curve(train_losses, val_losses, os.path.join(output_dir, "loss_curve.png"))
-        plot_accuracy_curve(train_accuracies, val_accuracies, os.path.join(output_dir, "accuracy_curve.png"))
+        plot_loss_curve(train_losses, val_losses, os.path.join(output_dir, "loss_curve_nn.png"))
+        plot_accuracy_curve(train_accuracies, val_accuracies, os.path.join(output_dir, "accuracy_curve_nn.png"))
 
+# Compute correlation between model probabilities and true value, vs BMI and true value
+def compute_correlation(model, data_loader, bmi, device, output_dir):
+    model.eval()
+    all_outputs = []
+    all_labels = []
+    with torch.no_grad():
+        for batch in data_loader:
+            features = batch['features'].to(device)
+            labels = batch['labels'].to(device)
+            outputs = model(features)
+            all_outputs.append(outputs.cpu().numpy())
+            all_labels.append(labels.cpu().numpy())
+    all_outputs = np.vstack(all_outputs)
+    all_labels = np.vstack(all_labels)
+
+    correlations_model = []
+    correlations_bmi = []
+    num_conditions = all_labels.shape[1]
+    for i in range(num_conditions):
+        corr_model = np.corrcoef(all_outputs[:, i], all_labels[:, i])[0, 1]
+        corr_bmi = np.corrcoef(bmi, all_labels[:, i])[0, 1]
+        correlations_model.append(corr_model)
+        correlations_bmi.append(corr_bmi)
+
+    correlation_df = pd.DataFrame({
+        'Condition': data_loader.dataset.label_cols,
+        'Correlation_Model': correlations_model,
+        'Correlation_BMI': correlations_bmi
+    })
+    correlation_df.to_csv(os.path.join(output_dir, "correlation_analysis.csv"), index=False)
 
 if __name__ == "__main__":
     DATA_DIR = r"data"
     MODEL_DIR = r"models"
     OUTPUT_DIR = r"analysis"
     CSV_FILE = os.path.join(DATA_DIR, "nhanes_merged_complete.csv")
-    MODEL_LOAD_PATH = os.path.join(MODEL_DIR, "multivariate_logistic_regression.pth")
+    MODEL_LOAD_PATH = os.path.join(MODEL_DIR, "best_deep_neural_network_dnn.pth")
     LOSS_SAVE_PATH = os.path.join(MODEL_DIR, "training_loss.csv")
     BATCH_SIZE = 64
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -72,11 +103,14 @@ if __name__ == "__main__":
     # Load dataset
     dataset = IBMIDataset(csv_file=CSV_FILE)
     data_loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False)
+    # Load just BMI from csv
+    bmi = pd.read_csv(CSV_FILE)['BMI'].values.astype('float32')
 
     # Load model
-    model = MultivariateLogisticRegression(input_dim=dataset.num_features, output_dim=dataset.num_labels)
+    model = DeepNeuralNetwork(input_dim=dataset.num_features, output_dim=dataset.num_labels)
     model.load_state_dict(torch.load(MODEL_LOAD_PATH, map_location=DEVICE))
     model.to(DEVICE)
 
     # Analyze model
     analyze_model(model, data_loader, DEVICE, OUTPUT_DIR)
+    compute_correlation(model, data_loader, bmi, DEVICE, OUTPUT_DIR)
