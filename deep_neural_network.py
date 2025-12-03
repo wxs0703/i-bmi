@@ -3,15 +3,6 @@ import torch.nn as nn
 
 class DeepNeuralNetwork(nn.Module):
     def __init__(self, input_dim, output_dim, hidden_dims=[128, 64, 32], dropout_rate=0.3):
-        """
-        Deep Neural Network for multi-label classification
-        
-        Args:
-            input_dim: Number of input features
-            output_dim: Number of output labels (5 in this case)
-            hidden_dims: List of hidden layer dimensions
-            dropout_rate: Dropout rate for regularization
-        """
         super(DeepNeuralNetwork, self).__init__()
         
         layers = []
@@ -62,16 +53,6 @@ class ResidualBlock(nn.Module):
 
 class DeepResidualNetwork(nn.Module):
     def __init__(self, input_dim, output_dim, hidden_dim=128, num_blocks=3, dropout_rate=0.3):
-        """
-        Deep Residual Network for capturing non-linear relationships
-        
-        Args:
-            input_dim: Number of input features
-            output_dim: Number of output labels
-            hidden_dim: Dimension of hidden layers
-            num_blocks: Number of residual blocks
-            dropout_rate: Dropout rate for regularization
-        """
         super(DeepResidualNetwork, self).__init__()
 
         self.input_layer = nn.Sequential(
