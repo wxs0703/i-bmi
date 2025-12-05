@@ -59,10 +59,10 @@ class DNNTrainer:
         
         return avg_loss, avg_acc
     
-    def _validate_epoch(self, epoch):
+    def _test_epoch(self, epoch):
         self.model.eval()
-        val_loss = 0.0
-        val_acc = 0.0
+        test_loss = 0.0
+        test_acc = 0.0
         
         with torch.no_grad():
             for batch in self.val_loader:
@@ -71,45 +71,45 @@ class DNNTrainer:
                 
                 outputs = self.model(features)
                 loss = self.criterion(outputs, labels)
-                val_loss += loss.item()
+                test_loss += loss.item()
                 acc = (outputs.round() == labels).float().mean()
-                val_acc += acc.item()
+                test_acc += acc.item()
         
-        avg_val_loss = val_loss / len(self.val_loader)
-        avg_val_acc = val_acc / len(self.val_loader)
+        avg_test_loss = test_loss / len(self.val_loader)
+        avg_test_acc = test_acc / len(self.val_loader)
         
-        print(f'Validation after Epoch [{epoch+1}/{self.num_epochs}]: '
-              f'Average Loss: {avg_val_loss:.4f}, Average Accuracy: {avg_val_acc:.4f}')
+        print(f'test after Epoch [{epoch+1}/{self.num_epochs}]: '
+              f'Average Loss: {avg_test_loss:.4f}, Average Accuracy: {avg_test_acc:.4f}')
         
-        if avg_val_loss < self.best_val_loss:
-            self.best_val_loss = avg_val_loss
+        if avg_test_loss < self.best_val_loss:
+            self.best_val_loss = avg_test_loss
             torch.save(self.model.state_dict(), BEST_MODEL_SAVE_PATH)
-            print(f'  --> Best model saved with validation loss: {avg_val_loss:.4f}')
+            print(f'  --> Best model saved with test loss: {avg_test_loss:.4f}')
         
-        return avg_val_loss, avg_val_acc
+        return avg_test_loss, avg_test_acc
     
     def train(self):
         train_losses = []
         train_accuracies = []
-        val_losses = []
-        val_accuracies = []
+        test_losses = []
+        test_accuracies = []
         
         for epoch in range(self.num_epochs):
             train_loss, train_acc = self._train_epoch(epoch)
-            val_loss, val_acc = self._validate_epoch(epoch)
+            test_loss, test_acc = self._test_epoch(epoch)
             
             train_losses.append(train_loss)
             train_accuracies.append(train_acc)
-            val_losses.append(val_loss)
-            val_accuracies.append(val_acc)
+            test_losses.append(test_loss)
+            test_accuracies.append(test_acc)
         
         torch.save(self.model.state_dict(), MODEL_SAVE_PATH)
         
         history_df = pd.DataFrame({
             'train_loss': train_losses,
-            'val_loss': val_losses,
+            'test_loss': test_losses,
             'train_accuracy': train_accuracies,
-            'val_accuracy': val_accuracies
+            'test_accuracy': test_accuracies
         })
         history_df.to_csv(HISTORY_SAVE_PATH, index=False)
         
@@ -131,17 +131,17 @@ def main():
     print(f'Label columns: {dataset.label_cols}\n')
     
     train_size = int(0.8 * len(dataset))
-    val_size = len(dataset) - train_size
-    train_dataset, val_dataset = torch.utils.data.random_split(
-        dataset, [train_size, val_size],
+    test_size = len(dataset) - train_size
+    train_dataset, test_dataset = torch.utils.data.random_split(
+        dataset, [train_size, test_size],
         generator=torch.Generator().manual_seed(42)
     )
     
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
     
     print(f'Training samples: {train_size}')
-    print(f'Validation samples: {val_size}\n')
+    print(f'Test samples: {test_size}\n')
     
     input_dim = dataset.num_features
     output_dim = dataset.num_labels
@@ -179,7 +179,7 @@ def main():
     trainer = DNNTrainer(
         model=model,
         train_loader=train_loader,
-        val_loader=val_loader,
+        val_loader=test_loader,
         criterion=criterion,
         optimizer=optimizer,
         num_epochs=NUM_EPOCHS,
@@ -197,7 +197,7 @@ if __name__ == "__main__":
     NUM_EPOCHS = 50
     DROPOUT_RATE = 0.2
     
-    HIDDEN_DIMS = [128, 64, 32]
+    HIDDEN_DIMS = [256, 256, 128, 128, 64, 64, 32]
     HIDDEN_DIM = 128  
     NUM_BLOCKS = 3 
     
@@ -206,7 +206,7 @@ if __name__ == "__main__":
     CSV_FILE = os.path.join(DATA_DIR, "nhanes_merged_complete.csv")
     MODEL_SAVE_PATH = os.path.join(MODEL_DIR, f"deep_neural_network_{MODEL_TYPE}.pth")
     BEST_MODEL_SAVE_PATH = os.path.join(MODEL_DIR, f"best_deep_neural_network_{MODEL_TYPE}.pth")
-    HISTORY_SAVE_PATH = os.path.join(MODEL_DIR, f"nn_training_history_{MODEL_TYPE}.csv")
+    HISTORY_SAVE_PATH = os.path.join(MODEL_DIR, f"nn_training_history_{MODEL_TYPE}_complex.csv")
     
     LOG_INTERVAL = 20
     os.makedirs(MODEL_DIR, exist_ok=True)
