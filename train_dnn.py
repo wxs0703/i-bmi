@@ -7,6 +7,7 @@ from deep_neural_network import DeepNeuralNetwork, DeepResidualNetwork
 import pandas as pd
 import os
 import numpy as np
+import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 
 
@@ -113,10 +114,41 @@ class DNNTrainer:
         })
         history_df.to_csv(HISTORY_SAVE_PATH, index=False)
         
+        plot_training_history(train_losses, test_losses, train_accuracies, test_accuracies)
+        
         print(f'\nTraining completed!')
         print(f'Training history saved to {HISTORY_SAVE_PATH}')
         print(f'Final model saved to {MODEL_SAVE_PATH}')
         print(f'Best model saved to {BEST_MODEL_SAVE_PATH}')
+
+
+def plot_training_history(train_losses, test_losses, train_accuracies, test_accuracies):
+    epochs = range(1, len(train_losses) + 1)
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))
+
+    ax1.plot(epochs, train_losses, 'b-', label='Training Loss', linewidth=2)
+    ax1.plot(epochs, test_losses, 'r-', label='Test Loss', linewidth=2)
+    ax1.set_xlabel('Epoch', fontsize=12)
+    ax1.set_ylabel('Loss', fontsize=12)
+    ax1.set_title('Training and Test Loss', fontsize=14, fontweight='bold')
+    ax1.legend(fontsize=10)
+    ax1.grid(True, alpha=0.3)
+
+    ax2.plot(epochs, train_accuracies, 'b-', label='Training Accuracy', linewidth=2)
+    ax2.plot(epochs, test_accuracies, 'r-', label='Test Accuracy', linewidth=2)
+    ax2.set_xlabel('Epoch', fontsize=12)
+    ax2.set_ylabel('Accuracy', fontsize=12)
+    ax2.set_title('Training and Test Accuracy', fontsize=14, fontweight='bold')
+    ax2.legend(fontsize=10)
+    ax2.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+
+    plot_path = os.path.join(ANALYSIS_DIR, f'training_history_{MODEL_TYPE}.png')
+    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+    print(f'\nTraining history plot saved to {plot_path}')
+    plt.close()
 
 
 def main():
@@ -197,18 +229,20 @@ if __name__ == "__main__":
     NUM_EPOCHS = 50
     DROPOUT_RATE = 0.2
     
-    HIDDEN_DIMS = [256, 256, 128, 128, 64, 64, 32]
+    HIDDEN_DIMS = [128, 64, 32]
     HIDDEN_DIM = 128  
     NUM_BLOCKS = 3 
     
     DATA_DIR = r"data"
     MODEL_DIR = r"models"
+    ANALYSIS_DIR = r"analysis"
     CSV_FILE = os.path.join(DATA_DIR, "nhanes_merged_complete.csv")
     MODEL_SAVE_PATH = os.path.join(MODEL_DIR, f"deep_neural_network_{MODEL_TYPE}.pth")
     BEST_MODEL_SAVE_PATH = os.path.join(MODEL_DIR, f"best_deep_neural_network_{MODEL_TYPE}.pth")
-    HISTORY_SAVE_PATH = os.path.join(MODEL_DIR, f"nn_training_history_{MODEL_TYPE}_complex.csv")
+    HISTORY_SAVE_PATH = os.path.join(MODEL_DIR, f"nn_training_history_{MODEL_TYPE}.csv")
     
     LOG_INTERVAL = 20
     os.makedirs(MODEL_DIR, exist_ok=True)
+    os.makedirs(ANALYSIS_DIR, exist_ok=True)
     
     main()
