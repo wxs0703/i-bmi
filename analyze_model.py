@@ -12,10 +12,10 @@ from torch.utils.data import DataLoader
 def plot_loss_curve(train_losses, val_losses, save_path):
     plt.figure()
     plt.plot(train_losses, label='Training Loss')
-    plt.plot(val_losses, label='Validation Loss')
+    plt.plot(val_losses, label='Test Loss')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
-    plt.title('Training and Validation Loss over Epochs')
+    plt.title('Training and Test Loss over Epochs')
     plt.legend()
     plt.savefig(save_path, dpi=300)
     plt.close()
@@ -23,10 +23,10 @@ def plot_loss_curve(train_losses, val_losses, save_path):
 def plot_accuracy_curve(train_accuracies, val_accuracies, save_path):
     plt.figure()
     plt.plot(train_accuracies, label='Training Accuracy')
-    plt.plot(val_accuracies, label='Validation Accuracy')
+    plt.plot(val_accuracies, label='Test Accuracy')
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy')
-    plt.title('Training and Validation Accuracy over Epochs')
+    plt.title('Training and Test Accuracy over Epochs')
     plt.legend()
     plt.savefig(save_path, dpi=300)
     plt.close()
@@ -46,7 +46,8 @@ def analyze_model(model, data_loader, device, output_dir):
     # feature_importance.to_csv(os.path.join(output_dir, "feature_importance.csv"), index=False)
 
     # plot loss and accuracy curves
-    loss_csv_path = os.path.join(MODEL_DIR, "nn_training_history_dnn.csv")
+    figure, axes = plt.subplots(1, 2, figsize=(12, 5))
+    loss_csv_path = os.path.join(MODEL_DIR, "training_loss.csv")
     if os.path.exists(loss_csv_path):
         loss_df = pd.read_csv(loss_csv_path)
         train_losses = loss_df['train_loss'].tolist()
@@ -54,8 +55,19 @@ def analyze_model(model, data_loader, device, output_dir):
         train_accuracies = loss_df['train_accuracy'].tolist()
         val_accuracies = loss_df['val_accuracy'].tolist()
 
-        plot_loss_curve(train_losses, val_losses, os.path.join(output_dir, "loss_curve_nn.png"))
-        plot_accuracy_curve(train_accuracies, val_accuracies, os.path.join(output_dir, "accuracy_curve_nn.png"))
+        axes[0].plot(train_losses, label='Training Loss')
+        axes[0].plot(val_losses, label='Test Loss')
+        axes[0].set_xlabel('Epoch')
+        axes[0].set_ylabel('Loss')
+        axes[0].set_title('Training and Test Loss over Epochs')
+        axes[0].legend()
+        axes[1].plot(train_accuracies, label='Training Accuracy')
+        axes[1].plot(val_accuracies, label='Test Accuracy')
+        axes[1].set_xlabel('Epoch')
+        axes[1].set_ylabel('Accuracy')
+        axes[1].set_title('Training and Test Accuracy over Epochs')
+        axes[1].legend()
+        plt.savefig(os.path.join(output_dir, "training_curves_reg.png"), dpi=300)
 
 # Compute correlation between model probabilities and true value, vs BMI and true value
 def compute_correlation(model, data_loader, bmi, device, output_dir):
@@ -113,4 +125,4 @@ if __name__ == "__main__":
 
     # Analyze model
     analyze_model(model, data_loader, DEVICE, OUTPUT_DIR)
-    compute_correlation(model, data_loader, bmi, DEVICE, OUTPUT_DIR)
+    # compute_correlation(model, data_loader, bmi, DEVICE, OUTPUT_DIR)
